@@ -9,6 +9,7 @@ module Paperclip
       @default_options ||= {
         :url               => "/system/:attachment/:id/:style/:filename",
         :path              => ":rails_root/public:url",
+        :paths             => {},
         :styles            => {},
         :processors        => [:thumbnail],
         :convert_options   => {},
@@ -35,6 +36,7 @@ module Paperclip
       @url               = @url.call(self) if @url.is_a?(Proc)
       @path              = options[:path]
       @path              = @path.call(self) if @path.is_a?(Proc)
+      @paths             = {:original => @path}.merge(options[:paths])
       @styles            = options[:styles]
       @normalized_styles = nil
       @default_url       = options[:default_url]
@@ -121,8 +123,8 @@ module Paperclip
     # file is stored in the filesystem the path refers to the path of the file
     # on disk. If the file is stored in S3, the path is the "key" part of the
     # URL, and the :bucket option refers to the S3 bucket.
-    def path style_name = default_style
-      original_filename.nil? ? nil : interpolate(@path, style_name)
+    def path style_name = default_style, extra_info = nil
+      original_filename.nil? ? nil : interpolate(@paths[style_name], style_name, extra_info)
     end
 
     # Alias to +url+
@@ -317,8 +319,8 @@ module Paperclip
       end
     end
 
-    def interpolate pattern, style_name = default_style #:nodoc:
-      Paperclip::Interpolations.interpolate(pattern, self, style_name)
+    def interpolate pattern, style_name = default_style, extra_info = nil #:nodoc:
+      Paperclip::Interpolations.interpolate(pattern, self, style_name, extra_info)
     end
 
     def queue_existing_for_delete #:nodoc:

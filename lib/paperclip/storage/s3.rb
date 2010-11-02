@@ -75,7 +75,9 @@ module Paperclip
           @s3_headers     = @options[:s3_headers]     || {}
           @s3_host_alias  = @options[:s3_host_alias]
           unless @url.to_s.match(/^:s3.*url$/)
-            @path          = @path.gsub(/:url/, @url)
+            @paths.each do |key, val|
+              val.gsub!(/:url/, @url)
+            end
             @url           = ":s3_path_url"
           end
           AWS::S3::Base.establish_connection!( @s3_options.merge(
@@ -83,13 +85,13 @@ module Paperclip
             :secret_access_key => @s3_credentials[:secret_access_key]
           ))
         end
-        Paperclip.interpolates(:s3_alias_url) do |attachment, style|
+        Paperclip.interpolates(:s3_alias_url) do |attachment, style, extra_info|
           "#{attachment.s3_protocol}://#{attachment.s3_host_alias}/#{attachment.path(style).gsub(%r{^/}, "")}"
         end
-        Paperclip.interpolates(:s3_path_url) do |attachment, style|
+        Paperclip.interpolates(:s3_path_url) do |attachment, style, extra_info|
           "#{attachment.s3_protocol}://s3.amazonaws.com/#{attachment.bucket_name}/#{attachment.path(style).gsub(%r{^/}, "")}"
         end
-        Paperclip.interpolates(:s3_domain_url) do |attachment, style|
+        Paperclip.interpolates(:s3_domain_url) do |attachment, style, extra_info|
           "#{attachment.s3_protocol}://#{attachment.bucket_name}.s3.amazonaws.com/#{attachment.path(style).gsub(%r{^/}, "")}"
         end
       end
@@ -136,13 +138,25 @@ module Paperclip
       def flush_writes #:nodoc:
         @queued_for_write.each do |style, file|
           begin
-            log("saving #{path(style)}")
-            AWS::S3::S3Object.store(path(style),
-                                    file,
-                                    bucket_name,
-                                    {:content_type => instance_read(:content_type),
-                                     :access => @s3_permissions,
-                                    }.merge(@s3_headers))
+            if file.kind_of?(Hash)
+              file.each do |key, value|
+                log("saving #{path(style, key)}")
+                AWS::S3::S3Object.store(path(style, key),
+                                        value,
+                                        bucket_name,
+                                        {:content_type => instance_read(:content_type),
+                                         :access => @s3_permissions,
+                                        }.merge(@s3_headers))
+              end
+            else
+              log("saving #{path(style)}")
+              AWS::S3::S3Object.store(path(style),
+                                      file,
+                                      bucket_name,
+                                      {:content_type => instance_read(:content_type),
+                                       :access => @s3_permissions,
+                                      }.merge(@s3_headers))
+            end
           rescue AWS::S3::ResponseError => e
             raise
           end
